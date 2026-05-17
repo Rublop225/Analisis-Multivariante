@@ -1,0 +1,187 @@
+---
+title: "Práctica 2 de inferencia multivariante y ACP"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+  pdf_document: default
+fontsize: 11pt
+geometry: margin=1in
+embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library("tidyverse")
+library("GGally")
+library("MVN")
+```
+
+
+## Problema 2
+
+En el siguiente [enlace](https://github.com/igmuib/Practica_AD/blob/main/problema1_ACP.csv) encontraréis datos de España correspondientes al año 2021, organizados en 7 variables: 4 relacionadas con el uso de las tecnologías de la información y la comunicación (TIC) en las empresas, y 3 vinculadas al uso de estas tecnologías por la población y al equipamiento tecnológico de los hogares. Las variables registradas son las siguientes:
+
+`ebroad`: porcentaje de empresas con acceso a Internet de banda ancha.
+
+`esales`: porcentaje de empresas que realizan ventas electrónicas.
+
+`esocmedia`: porcentaje de empresas que utilizan redes sociales.
+
+`eweb`: porcentaje de empresas con sitio web.
+
+`hbroad`: porcentaje de hogares con acceso a Internet de banda ancha.
+
+`hiacc`: porcentaje de hogares con acceso general a Internet, independientemente del tipo de conexión.
+
+`iuse`: porcentaje de individuos que utilizan Internet.  
+
+
+### a. Realizad un análisis exploratorio de los datos, acompañado de un resumen de las observaciones más relevantes en relación con el contexto del problema, para ello crea una variable `region` con los siguientes niveles:
+
+* Europa Occidental" = c("BE", "FR", "DE", "AT", "NL", "LU", "IE"),
+
+* Europa del Sur" = c("ES", "IT", "PT", "EL", "CY", "MT"),
+
+* "Europa del Este" = c("CZ", "BG", "HU", "PL", "RO", "SK"),
+
+* "Países Nórdicos" = c("DK", "SE", "FI", "NO"),
+
+* "Países Bálticos" = c("EE", "LV", "LT")
+
+Aseguraos de incluir, un análisis de la matriz de correlaciones.
+
+#### Respuesta
+
+Cargamos los datos del problema
+
+```{r}
+library(readr)
+datos <- read_csv("problema1_ACP.csv")
+```
+
+Primero veamos las correlaciones entre las cariables sin hacer distinción por regiones,
+```{r}
+library(GGally)
+
+vars <- datos %>% select(where(is.numeric))
+ggpairs(vars)
+
+```
+
+
+
+Clasificamos los datos en función de los vectores definidos anteriormente,
+
+```{r}
+
+datos$region <- with(datos,
+                     ifelse(datos$...1 %in% c("BE","FR","DE","AT","NL","LU","IE"), "Europa Occidental",
+                     ifelse(datos$...1 %in% c("ES","IT","PT","EL","CY","MT"), "Europa del Sur",
+                     ifelse(datos$...1 %in% c("CZ","BG","HU","PL","RO","SK"), "Europa del Este",
+                     ifelse(datos$...1 %in% c("DK","SE","FI","NO"), "Países Nórdicos",
+                     ifelse(datos$...1 %in% c("EE","LV","LT"), "Países Bálticos",
+                            NA))))))
+
+datos_Occidental <- datos %>% 
+  filter(region == "Europa Occidental")
+
+datos_Sur <- datos %>% 
+  filter(region == "Europa del Sur")
+
+datos_Este <- datos %>% 
+  filter(region == "Europa del Este")
+
+datos_Nordicos <- datos %>% 
+  filter(region == "Países Nórdicos")
+
+datos_Balticos <- datos %>% 
+  filter(region == "Países Bálticos")
+
+```
+
+
+
+Vamos a mirar las correlaciones dentro de cada región,
+
+Europa Occidental
+```{r}
+vars_occ <- datos_Occidental %>% select(where(is.numeric))
+ggpairs(vars_occ)
+
+```
+
+Europa del Este
+```{r}
+vars_est <- datos_Este %>% select(where(is.numeric))
+ggpairs(vars_est)
+
+```
+
+Europa del Sur
+```{r}
+vars_sur <- datos_Sur %>% select(where(is.numeric))
+ggpairs(vars_sur)
+
+```
+
+
+Paises Bálticos
+```{r}
+vars_bal <- datos_Balticos %>% select(where(is.numeric))
+ggpairs(vars_bal)
+
+```
+
+Paises Nórdicos
+```{r}
+vars_nor <- datos_Nordicos %>% select(where(is.numeric))
+ggpairs(vars_nor)
+
+```
+
+Ahora vamos a estudiar las correlaciones entre los distintos grupos,
+```{r}
+datos_2 <- datos %>% select(-...1) %>% group_by(region)
+
+vars_total <- datos_2 %>% select(where(is.numeric))
+ggpairs(vars_total)
+
+```
+
+
+
+### b. Realizad una reducción del número de variables utilizando un Análisis de Componentes Principales (PCA). Justificad si trabajaréis con la matriz de covarianzas o la de correlaciones, considerando las características de los datos. Evaluad la idoneidad de la reducción propuesta, indicando claramente el criterio empleado para seleccionar el número de componentes principales a retener. Finalmente, interpretad las componentes principales seleccionadas, describiendo qué representan en el contexto de los datos y cómo contribuyen al análisis.
+
+#### Respuesta
+
+Aunque los valores están todos en la misma escala, ya que son porcentajes, presentan variabilidad entre ellos, por lo que consideraremos la matriz de correlaciones pra trabajar.
+```{r,warning=FALSE,message=FALSE}
+library("factoextra")
+pca=prcomp(vars,scale=TRUE)
+lambdas=get_eigenvalue(pca)
+lambdas   
+```
+
+Como podemos observar, hay una componente principal con un valor propio muy alto, y que, por lo tanto, acumula casi todo el porcentaje de la varianza, otra componente con valor propio superior a 1, que representa más de un 15% de la varianza, y otras 5 componentes principales que podemos considerar prácticamente despreciables (en todas el valor propio es bastante inferior a 1. Nos quedamos con las 2 primeras componentes principales, que representan el 80% de la varianza total.
+
+```{r}
+pca$rotation
+
+```
+Como hemos visto antes, las 2 primeras componentes principales son las que acumulan la mayoría de la varianza total (un 82%). En la primera componente, vemos que es una combinación lineal de las 7 primeras variables con un peso más o menos similar para cada variable. Por otro lado, la segunda componente le da un mayor peso a las ventas electrónicas realizadas por empresas y a las variables relacionadas con la electrónica en hogares.
+
+```{r}
+library("factoextra")
+fviz_pca_biplot(pca,repel=TRUE)
+
+```
+En este biplot vemos lo siguiente:\
+Las direcciones de las flechas que representan las variables son todas negativas respecto a la primera componente, y las de las variables iuse, hbroad e hiacc son negativas respecto a la segunda componente, tal y como hemos visto en la matriz anterior.\
+Por otro lado, la variable esales está prácticamente incorrelacionada con las variables hiacc y hbroad, ya que sus direcciones son prácticamente otrogonales (de hecho, sus correlaciones son 0.16 y 0.19, respectivamente, los valores más bajos de la matriz de correlaciones).\
+Tal y como hemos dicho antes, las variables relacionadas con la electrónica en hogares y la variable esales son las que tienen mayor peso en la segunda componente, ya que las flechas del resto de variables están muy cerca del eje de la segunda componente, mientras que no hay ninguna flecha muy cercana al eje vertical, ya que la primera componente daba un peso más o menos considerable a todas las variables.
+
+
+
+
